@@ -36,3 +36,4 @@ Prioritized by demo impact.
 - Mobile layout tested via responsive classes but not device-verified.
 - Optimizer stacks "trim 20%" then "trim 40%" as two steps (60% total cut); collapsing into a
   single best-cut step would read cleaner.
+

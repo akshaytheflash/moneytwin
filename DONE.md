@@ -17,6 +17,7 @@
 - [x] Intervention optimizer — dynamic catalog (tiered discretionary cuts, subscriptions, scaled reserves up to ₹1L, EMI refinance), greedy cost-effectiveness ladder plus combined fallback pass when no single move helps; verified on the near-certain-failure Rao household (100% → 4.8%)
 - [x] Scenario comparison — save up to three runs side by side with mini runway charts
 - [x] Visualizations — uncertainty band chart with baseline overlay, category bars, intervention impact bars, dial gauge, hover tooltips
+- [x] Guided demo tour � 7-step auto-driving spotlight walkthrough (pick profile ? twin flags ? job loss ? Monte Carlo results ? optimizer ? finale) with click-jail overlay, moving highlight ring, emphasized graph-change pulses, persistent end/skip controls
 - [x] Plain-language annotations — all technical metrics on the evaluation page (and UI copy) explained for non-fintech readers, technical terms kept in parentheses
 - [x] Demo profiles/data — Meera (stable), Arjun (volatile freelance), Rao household (leveraged)
 - [x] Evaluation — /api/evaluate: Brier score, MAE vs 4k-path reference, IQR coverage of true median, optimizer effectiveness + monotonicity violations, ms/sim throughput
@@ -25,4 +26,5 @@
 - [x] Render configuration — render.yaml blueprint + README instructions; health endpoint /api/health
 - [x] Documentation — README with architecture, modeling rationale, assumptions/limitations
 - [x] Validation & error handling on all API routes; no hardcoded secrets; lint + typecheck clean
+
 

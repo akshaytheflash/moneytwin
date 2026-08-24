@@ -10,7 +10,13 @@ interface DemoMeta {
   cashBalance: number;
 }
 
-export default function ProfileStage({ onReady }: { onReady: (twin: FinancialTwin) => void }) {
+export default function ProfileStage({
+  onReady,
+  autoProfileId,
+}: {
+  onReady: (twin: FinancialTwin) => void;
+  autoProfileId?: string | null;
+}) {
   const [profiles, setProfiles] = useState<DemoMeta[]>([]);
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +39,11 @@ export default function ProfileStage({ onReady }: { onReady: (twin: FinancialTwi
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (autoProfileId) build({ source: 'demo', profileId: autoProfileId }, `demo-${autoProfileId}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoProfileId]);
 
   async function build(body: Record<string, unknown>, key: string) {
     setLoading(key);
@@ -97,7 +108,7 @@ export default function ProfileStage({ onReady }: { onReady: (twin: FinancialTwi
 
       {!showManual ? (
         <>
-          <div className="mt-5 grid gap-4 sm:grid-cols-3">
+          <div className="mt-5 grid gap-4 sm:grid-cols-3" data-tour="profile-cards">
             {(profiles.length ? profiles : [null, null, null]).map((p, i) =>
               p === null ? (
                 <div key={i} className="panel animate-pulse p-5 opacity-50" style={{ minHeight: 150 }} />

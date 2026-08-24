@@ -49,7 +49,11 @@ npm run build      # production build
    target failure probability for minimum lifestyle cost — including combined plans when no single
    move is enough.
 9. **Scenario comparison** — save up to three runs side by side with mini runway charts.
-10. **Evaluation page** (`/evaluation`) — the engine is scored against a synthetic population:
+10. **Guided demo tour** — one click auto-drives the whole story arc: picks the leveraged
+    household, applies job loss, replays 2,000 futures, runs the optimizer, and lands on the
+    combined plan cutting risk from ~100% to single digits. Spotlight overlay locks interaction to
+    the active panel; graph updates get an explicit pulsing highlight.
+11. **Evaluation page** (`/evaluation`) — the engine is scored against a synthetic population:
     agreement between fast and deep estimates, reliability of the shaded range, intervention
     effectiveness, monotonicity checks, and throughput. All metrics are annotated in plain language.
 

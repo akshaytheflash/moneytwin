@@ -61,7 +61,7 @@ export default function TwinStage({
       )}
 
       <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <div className="panel p-5" style={{ borderTop: `6px solid ${bandColor(resilience.band)}` }}>
+        <div className="panel p-5" style={{ borderTop: `6px solid ${bandColor(resilience.band)}` }} data-tour="twin-risk">
           <p className="eyebrow">Resilience score</p>
           <div className="mt-1 flex items-baseline gap-3">
             <p className="num text-4xl font-bold" style={{ color: bandColor(resilience.band) }}>

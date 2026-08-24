@@ -18,6 +18,20 @@ import { parseScenarioText } from '@/lib/scenarioText';
 
 type SimPair = { baseline: SimulationResult; stressed: SimulationResult };
 
+export interface LabStatus {
+  shockCount: number;
+  hasSim: boolean;
+  busy: boolean;
+  optBusy: boolean;
+  hasOpt: boolean;
+}
+
+export interface LabCommand {
+  kind: 'preset' | 'optimize';
+  name?: string;
+  nonce: number;
+}
+
 interface SavedScenario {
   key: string;
   label: string;
@@ -42,7 +56,15 @@ const PRESETS: { label: string; shocks: Shock[] }[] = [
   },
 ];
 
-export default function LabStage({ twin: baseTwin }: { twin: FinancialTwin }) {
+export default function LabStage({
+  twin: baseTwin,
+  command = null,
+  onStatus,
+}: {
+  twin: FinancialTwin;
+  command?: LabCommand | null;
+  onStatus?: (s: LabStatus) => void;
+}) {
   const [horizon, setHorizon] = useState(6);
   const [shocks, setShocks] = useState<Shock[]>([]);
   const [sim, setSim] = useState<SimPair | null>(null);
@@ -113,6 +135,25 @@ export default function LabStage({ twin: baseTwin }: { twin: FinancialTwin }) {
     return () => clearTimeout(t);
   }, [runSimulation, horizon, twin, shocks]);
 
+  const cmdNonce = command?.nonce ?? 0;
+  useEffect(() => {
+    if (!command) return;
+    const t = setTimeout(() => {
+      if (command.kind === 'preset') {
+        const p = PRESETS.find((x) => x.label === command.name);
+        if (p) applyShocks(p.shocks, p.label);
+      } else {
+        void runOptimizer(0.15);
+      }
+    }, 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cmdNonce]);
+
+  useEffect(() => {
+    onStatus?.({ shockCount: shocks.length, hasSim: !!sim, busy, optBusy, hasOpt: !!opt });
+  });
+
   function applyShocks(list: Shock[], presetLabel: string | null = null) {
     setShocks(list);
     setActivePreset(presetLabel);
@@ -139,8 +180,9 @@ export default function LabStage({ twin: baseTwin }: { twin: FinancialTwin }) {
     applyShocks(parsed);
   }
 
-  async function runOptimizer() {
+  async function runOptimizer(targetOverride?: number) {
     if (shocks.length === 0) return;
+    const target = targetOverride ?? targetPct / 100;
     setOptBusy(true);
     try {
       const res = await fetch('/api/optimize', {
@@ -149,7 +191,7 @@ export default function LabStage({ twin: baseTwin }: { twin: FinancialTwin }) {
         body: JSON.stringify({
           twin,
           scenario: { shocks, horizonMonths: horizon },
-          targetProbability: targetPct / 100,
+          targetProbability: target,
         }),
       });
       const data = await res.json();
@@ -249,7 +291,7 @@ export default function LabStage({ twin: baseTwin }: { twin: FinancialTwin }) {
         {(sim?.stressed.paths ?? 2000).toLocaleString()} simulated futures of your finances.
       </p>
 
-      <div className="panel mt-6 p-5">
+      <div className="panel mt-6 p-5" data-tour="lab-shocks">
         <div className="flex flex-wrap items-center gap-3">
           <span className="eyebrow">Horizon</span>
           {[3, 6, 12].map((h) => (
@@ -393,7 +435,7 @@ export default function LabStage({ twin: baseTwin }: { twin: FinancialTwin }) {
 
       {sim && (
         <>
-          <div className="mt-8 grid items-start gap-6 lg:grid-cols-[300px_1fr]">
+          <div className="mt-8 grid items-start gap-6 lg:grid-cols-[300px_1fr]" data-tour="lab-results">
             <div className="panel p-6 text-center">
               <p className="eyebrow">Liquidity failure probability</p>
               <div className="mt-2 flex justify-center">
@@ -488,7 +530,7 @@ export default function LabStage({ twin: baseTwin }: { twin: FinancialTwin }) {
           )}
 
           {shocks.length > 0 && (
-            <div className="panel mt-6 p-6">
+            <div className="panel mt-6 p-6" data-tour="lab-optimizer">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <h3 className="eyebrow">Intervention optimizer</h3>
@@ -510,7 +552,7 @@ export default function LabStage({ twin: baseTwin }: { twin: FinancialTwin }) {
                     aria-label="Target failure probability percent"
                   />
                 </label>
-                <button type="button" className="btn btn-primary" disabled={optBusy || busy} onClick={runOptimizer}>
+                <button type="button" className="btn btn-primary" disabled={optBusy || busy} onClick={() => void runOptimizer()}>
                   {optBusy ? 'Optimizing…' : 'Find interventions'}
                 </button>
               </div>

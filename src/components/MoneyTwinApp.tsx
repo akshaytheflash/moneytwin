@@ -1,10 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import ProfileStage from './ProfileStage';
 import TwinStage from './TwinStage';
 import LabStage from './LabStage';
+import Tour from './Tour';
+import type { LabCommand, LabStatus } from './LabStage';
+import { TOUR_STEPS } from '@/lib/tourSteps';
 import type { FinancialTwin } from '@/lib/engine/types';
 
 type Stage = 'profile' | 'twin' | 'lab';
@@ -32,8 +35,72 @@ function Wordmark() {
 export default function MoneyTwinApp() {
   const [stage, setStage] = useState<Stage>('profile');
   const [twin, setTwin] = useState<FinancialTwin | null>(null);
+  const [tourIdx, setTourIdx] = useState<number | null>(null);
+  const [autoProfileId, setAutoProfileId] = useState<string | null>(null);
+  const [labCmd, setLabCmd] = useState<LabCommand | null>(null);
+  const [labStatus, setLabStatus] = useState<LabStatus>({
+    shockCount: 0,
+    hasSim: false,
+    busy: false,
+    optBusy: false,
+    hasOpt: false,
+  });
+  const actionNonce = useRef(0);
+
+  const tourActive = tourIdx !== null;
+  const step = tourIdx !== null ? TOUR_STEPS[tourIdx] : null;
+
+  const handleLabStatus = useCallback((s: LabStatus) => {
+    setLabStatus((prev) =>
+      prev.shockCount === s.shockCount &&
+      prev.hasSim === s.hasSim &&
+      prev.busy === s.busy &&
+      prev.optBusy === s.optBusy &&
+      prev.hasOpt === s.hasOpt
+        ? prev
+        : s,
+    );
+  }, []);
+
+  useEffect(() => {
+    if (tourIdx === null || tourIdx >= TOUR_STEPS.length) return;
+    const s = TOUR_STEPS[tourIdx];
+    const t = setTimeout(() => {
+      if (s.stage !== stage && twin) setStage(s.stage);
+      if (!s.action || !tourActive) return;
+      if (s.action === 'pick-rao') {
+        if (!twin) setAutoProfileId('rao');
+      } else {
+        actionNonce.current += 1;
+        if (s.action === 'apply-job-loss')
+          setLabCmd({ kind: 'preset', name: 'Job loss · 2 months', nonce: actionNonce.current });
+        else setLabCmd({ kind: 'optimize', nonce: actionNonce.current });
+      }
+    }, 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tourIdx]);
+
+  function startTour() {
+    setTourIdx(0);
+  }
+
+  function endTour() {
+    setTourIdx(null);
+    setAutoProfileId(null);
+    setLabCmd(null);
+  }
 
   const stageIndex = STEPS.findIndex((s) => s.id === stage);
+  const appState = {
+    stage,
+    hasTwin: !!twin,
+    shockCount: labStatus.shockCount,
+    hasSim: labStatus.hasSim,
+    busy: labStatus.busy,
+    optBusy: labStatus.optBusy,
+    hasOpt: labStatus.hasOpt,
+  };
 
   function handleTwin(t: FinancialTwin) {
     setTwin(t);
@@ -78,16 +145,25 @@ export default function MoneyTwinApp() {
                 </button>
               );
             })}
+            {stage === 'profile' && !twin && !tourActive && (
+              <button type="button" className="chip ml-2" onClick={startTour}>
+                ▸ Take the tour
+              </button>
+            )}
           </nav>
         </div>
       </header>
 
       <main>
-        {stage === 'profile' && <ProfileStage onReady={handleTwin} />}
+        {stage === 'profile' && (
+          <ProfileStage onReady={handleTwin} autoProfileId={tourActive ? autoProfileId : null} />
+        )}
         {stage === 'twin' && twin && (
           <TwinStage twin={twin} onContinue={() => setStage('lab')} />
         )}
-        {stage === 'lab' && twin && <LabStage key={twin.label} twin={twin} />}
+        {stage === 'lab' && twin && (
+          <LabStage key={twin.label} twin={twin} command={tourActive ? labCmd : null} onStatus={handleLabStatus} />
+        )}
       </main>
 
       <footer className="mt-16 border-t-2 border-ink">
@@ -100,6 +176,20 @@ export default function MoneyTwinApp() {
           </Link>
         </div>
       </footer>
+
+      {step && (
+        <Tour
+          step={step}
+          index={tourIdx ?? 0}
+          total={TOUR_STEPS.length}
+          ready={step.ready(appState)}
+          onNext={() =>
+            setTourIdx((i) => (i === null ? null : Math.min(i + 1, TOUR_STEPS.length - 1)))
+          }
+          onBack={() => setTourIdx((i) => (i === null ? null : Math.max(i - 1, 0)))}
+          onEnd={endTour}
+        />
+      )}
     </div>
   );
 }
