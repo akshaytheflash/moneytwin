@@ -52,20 +52,32 @@ export default function MoneyTwinApp() {
             <Wordmark />
           </button>
           <nav className="num flex items-center gap-1 text-xs uppercase tracking-wider" aria-label="Progress">
-            {STEPS.map((s, i) => (
-              <button
-                key={s.id}
-                type="button"
-                disabled={i > (twin ? 2 : 0)}
-                onClick={() => setStage(s.id)}
-                className={`rounded-full px-3 py-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${
-                  i === stageIndex ? 'bg-petrol text-[#f2faf7]' : i < stageIndex ? 'hover:bg-mint' : ''
-                }`}
-                aria-current={i === stageIndex ? 'step' : undefined}
-              >
-                {s.label}
-              </button>
-            ))}
+            {STEPS.map((s, i) => {
+              const locked = i > (twin ? 2 : 0);
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  disabled={locked}
+                  onClick={() => setStage(s.id)}
+                  className={`rounded-full px-3 py-1.5 transition-colors disabled:cursor-not-allowed ${
+                    i === stageIndex
+                      ? 'bg-petrol text-[#f2faf7]'
+                      : locked
+                        ? 'text-inksoft/60 line-through decoration-line'
+                        : 'hover:bg-mint'
+                  }`}
+                  aria-current={i === stageIndex ? 'step' : undefined}
+                  title={
+                    locked
+                      ? 'Pick a profile or enter your numbers first'
+                      : `Go to ${s.label.split('·')[1]?.trim()}`
+                  }
+                >
+                  {s.label}
+                </button>
+              );
+            })}
           </nav>
         </div>
       </header>
