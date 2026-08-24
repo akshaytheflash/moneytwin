@@ -7,6 +7,7 @@ import AffordCheck from './AffordCheck';
 import BreakingPointBox from './BreakingPointBox';
 import { describeShock } from '@/lib/engine/forecast';
 import { inr } from '@/lib/engine/format';
+import { resilienceScore } from '@/lib/engine/score';
 import type {
   FinancialTwin,
   Shock,
@@ -194,7 +195,17 @@ export default function LabStage({ twin: baseTwin }: { twin: FinancialTwin }) {
       `- Income: ${inr(twin.monthlyIncome)}/mo (± ${inr(twin.incomeVolatility)})`,
       `- Fixed obligations: ${inr(twin.fixedExpenses + twin.emiMonthly)}/mo`,
       `- Variable spend: ${inr(twin.variableExpenses)}/mo (${inr(twin.discretionaryMonthly)} discretionary)`,
-      `- Emergency reserve target: ${inr(twin.emergencyBufferTarget)}`,
+      '- Emergency reserve target: ' + inr(twin.emergencyBufferTarget),
+      `- Resilience score: ${resilienceScore(twin).score}/100 (${resilienceScore(twin).band})`,
+      ...(whatIfActive
+        ? [
+            '',
+            '## What-if adjustments applied',
+            `- Income: ${whatIf.incomeDelta > 0 ? '+' : ''}${whatIf.incomeDelta}%`,
+            `- Spending trimmed: ${whatIf.cutPct}%`,
+            `- EMI burden: ${whatIf.emiDelta > 0 ? '+' : ''}${whatIf.emiDelta}%`,
+          ]
+        : []),
       '',
       '## Scenario',
       ...(shocks.length ? shocks.map((x) => `- ${describeShock(x)}`) : ['- Baseline (no shocks)']),

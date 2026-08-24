@@ -25,3 +25,4 @@
 - [x] Render configuration — render.yaml blueprint + README instructions; health endpoint /api/health
 - [x] Documentation — README with architecture, modeling rationale, assumptions/limitations
 - [x] Validation & error handling on all API routes; no hardcoded secrets; lint + typecheck clean
+

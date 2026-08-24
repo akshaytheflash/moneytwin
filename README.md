@@ -91,8 +91,9 @@ All engine code is deterministic given a seed — identical inputs reproduce ide
 
 ### Modeling choices
 
-- **Income noise:** lognormal (`exp(σ·z − σ²/2)`) so income never goes negative and skew matches
-  real pay variability; σ derived from observed month-to-month volatility of credits.
+- **Income noise:** AR(1) lognormal shocks — `σ·z_m` where `z_m = ρ·z_{m−1} + √(1−ρ²)·ε` with
+  ρ = 0.3 — so bad months cluster the way real (especially freelance) income does, while overall
+  variance still matches the observed month-to-month volatility. Income never goes negative.
 - **Variable spend noise:** lognormal with σ = 0.35; fixed costs get ±3% Gaussian jitter.
 - **Failure definition:** projected balance < ₹0 at any month in the horizon. `failureProb(m)` is
   cumulative across paths; exhaustion month distribution gives *when*, not just *whether*.

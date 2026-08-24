@@ -3,6 +3,7 @@ import { hashSeed, makeGaussian, mulberry32, percentile } from './rng';
 
 const DEFAULT_PATHS = 2000;
 const VARIABLE_SIGMA = 0.35;
+const INCOME_AUTOCORRELATION = 0.3;
 
 function clamp(x: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, x));
@@ -110,12 +111,17 @@ function simulate(twin: FinancialTwin, scenario: Scenario, paths: number, seed: 
     let failed = false;
     let exhaustedAt = -1;
     let minBal = bal;
+    let prevIncomeShock = 0;
     columns[0][p] = bal;
 
     for (let m = 1; m <= H; m++) {
       const e = economies[m - 1];
+      const fresh = gauss();
+      prevIncomeShock =
+        INCOME_AUTOCORRELATION * prevIncomeShock +
+        Math.sqrt(1 - INCOME_AUTOCORRELATION * INCOME_AUTOCORRELATION) * fresh;
       let inc = baseIncome * e.incomeFactor;
-      inc *= Math.exp(gauss() * sigmaRel - 0.5 * sigmaRel * sigmaRel);
+      inc *= Math.exp(sigmaRel * prevIncomeShock - 0.5 * sigmaRel * sigmaRel);
       if (e.incomeZeroed) inc = 0;
       const delayed = inc * e.carryFraction;
       const received = inc - delayed + carry;
