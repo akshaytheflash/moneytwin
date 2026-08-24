@@ -48,17 +48,27 @@ export default function Tour({
       if (el instanceof HTMLElement) {
         const r = el.getBoundingClientRect();
         if (r.width > 0 && r.height > 0) {
-          setRect((prev) =>
-            prev &&
-            Math.abs(prev.top - r.top) < 0.5 &&
-            Math.abs(prev.left - r.left) < 0.5 &&
-            Math.abs(prev.width - r.width) < 0.5 &&
-            Math.abs(prev.height - r.height) < 0.5
-              ? prev
-              : { top: r.top, left: r.left, width: r.width, height: r.height },
-          );
           const vw = window.innerWidth;
           const vh = window.innerHeight;
+          const pad = 8;
+          const visTop = Math.max(r.top, pad);
+          const visBottom = Math.min(r.bottom, vh - pad);
+          const visLeft = Math.max(r.left, pad);
+          const visRight = Math.min(r.right, vw - pad);
+          setRect((prev) =>
+            prev &&
+            Math.abs(prev.top - visTop) < 0.5 &&
+            Math.abs(prev.left - visLeft) < 0.5 &&
+            Math.abs(prev.width - (visRight - visLeft)) < 0.5 &&
+            Math.abs(prev.height - (visBottom - visTop)) < 0.5
+              ? prev
+              : {
+                  top: visTop,
+                  left: visLeft,
+                  width: Math.max(visRight - visLeft, 40),
+                  height: Math.max(visBottom - visTop, 40),
+                },
+          );
           const cardW = Math.min(CARD_W, vw - 24);
           const bottomSheet = vw < 640;
           let left = Math.min(Math.max(r.left + r.width - cardW, 12), vw - cardW - 12);
@@ -143,6 +153,7 @@ export default function Tour({
         opacity: 1,
       }
     : { opacity: 0, top: '40%', left: '40%', width: 120, height: 80 };
+
 
   const isLast = index === total - 1;
 

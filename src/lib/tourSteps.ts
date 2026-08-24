@@ -10,25 +10,12 @@ export interface TourAppState {
   hasOpt: boolean;
 }
 
-export const EMPTY_APP_STATE: TourAppState = {
-  stage: 'profile',
-  hasTwin: false,
-  shockCount: 0,
-  hasSim: false,
-  busy: false,
-  optBusy: false,
-  hasOpt: false,
-};
-
-export type TourAction = 'pick-rao' | 'apply-job-loss' | 'run-optimizer';
-
 export interface TourStepDef {
   id: string;
   screen: string;
   caption: string;
   target: string;
   stage: TourStage;
-  action?: TourAction;
   emphasize?: boolean;
   pendingNote?: string;
   ready: (s: TourAppState) => boolean;
@@ -48,9 +35,8 @@ export const TOUR_STEPS: TourStepDef[] = [
     id: 'pick-rao',
     screen: 'DEMO PROFILES',
     stage: 'profile',
-    target: 'profile-cards',
-    action: 'pick-rao',
-    caption: 'Selecting the Rao household — dual income, two EMIs, thin buffer.',
+    target: 'profile-card-rao',
+    caption: 'Your turn: click the Rao household card to build its financial twin.',
     ready: (s) => s.hasTwin,
     pendingNote: 'building financial twin…',
   },
@@ -64,14 +50,21 @@ export const TOUR_STEPS: TourStepDef[] = [
     ready: (s) => s.stage === 'twin' && s.hasTwin,
   },
   {
+    id: 'twin-continue',
+    screen: 'FINANCIAL TWIN',
+    stage: 'twin',
+    target: 'twin-continue',
+    caption: 'Now open the stress lab.',
+    ready: (s) => s.stage === 'lab',
+  },
+  {
     id: 'shock',
     screen: 'STRESS LAB',
     stage: 'lab',
-    target: 'lab-shocks',
-    action: 'apply-job-loss',
-    caption: 'Applying a two-month total income loss to the twin.',
-    ready: (s) => s.stage === 'lab' && s.shockCount > 0 && s.hasSim && !s.busy,
-    pendingNote: 'applying scenario…',
+    target: 'preset-job-loss',
+    caption: "Apply a two-month total income loss: click the 'Job loss · 2 months' preset.",
+    ready: (s) => s.shockCount > 0 && s.hasSim && !s.busy,
+    pendingNote: 'simulating…',
   },
   {
     id: 'results',
@@ -87,10 +80,9 @@ export const TOUR_STEPS: TourStepDef[] = [
     id: 'optimize',
     screen: 'INTERVENTION OPTIMIZER',
     stage: 'lab',
-    target: 'lab-optimizer',
-    action: 'run-optimizer',
+    target: 'optimizer-run',
     caption:
-      'Searching the cheapest combination of realistic moves that brings failure risk under the 15% target.',
+      'Ask the engine for the cheapest combination of realistic moves that brings risk under the 15% target.',
     ready: (s) => s.hasOpt && !s.optBusy,
     pendingNote: 'simulating intervention combinations…',
   },

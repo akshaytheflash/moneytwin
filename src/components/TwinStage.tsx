@@ -172,7 +172,7 @@ export default function TwinStage({
             </p>
           )}
 
-          <button type="button" className="btn btn-primary mt-6 w-full" onClick={onContinue}>
+          <button type="button" className="btn btn-primary mt-6 w-full" data-tour="twin-continue" onClick={onContinue}>
             Open the stress lab →
           </button>
         </div>

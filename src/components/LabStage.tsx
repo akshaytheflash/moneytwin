@@ -26,12 +26,6 @@ export interface LabStatus {
   hasOpt: boolean;
 }
 
-export interface LabCommand {
-  kind: 'preset' | 'optimize';
-  name?: string;
-  nonce: number;
-}
-
 interface SavedScenario {
   key: string;
   label: string;
@@ -58,11 +52,9 @@ const PRESETS: { label: string; shocks: Shock[] }[] = [
 
 export default function LabStage({
   twin: baseTwin,
-  command = null,
   onStatus,
 }: {
   twin: FinancialTwin;
-  command?: LabCommand | null;
   onStatus?: (s: LabStatus) => void;
 }) {
   const [horizon, setHorizon] = useState(6);
@@ -134,21 +126,6 @@ export default function LabStage({
     const t = setTimeout(() => runSimulation(shocks, horizon, twin), 500);
     return () => clearTimeout(t);
   }, [runSimulation, horizon, twin, shocks]);
-
-  const cmdNonce = command?.nonce ?? 0;
-  useEffect(() => {
-    if (!command) return;
-    const t = setTimeout(() => {
-      if (command.kind === 'preset') {
-        const p = PRESETS.find((x) => x.label === command.name);
-        if (p) applyShocks(p.shocks, p.label);
-      } else {
-        void runOptimizer(0.15);
-      }
-    }, 0);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cmdNonce]);
 
   useEffect(() => {
     onStatus?.({ shockCount: shocks.length, hasSim: !!sim, busy, optBusy, hasOpt: !!opt });
@@ -313,6 +290,7 @@ export default function LabStage({
               key={p.label}
               type="button"
               className={`chip ${activePreset === p.label ? 'chip-on' : ''}`}
+              data-tour={p.label.startsWith('Job loss') ? 'preset-job-loss' : undefined}
               onClick={() => togglePreset(p.label, p.shocks)}
             >
               {p.label}
@@ -552,7 +530,7 @@ export default function LabStage({
                     aria-label="Target failure probability percent"
                   />
                 </label>
-                <button type="button" className="btn btn-primary" disabled={optBusy || busy} onClick={() => void runOptimizer()}>
+                <button type="button" className="btn btn-primary" data-tour="optimizer-run" disabled={optBusy || busy} onClick={() => void runOptimizer()}>
                   {optBusy ? 'Optimizing…' : 'Find interventions'}
                 </button>
               </div>

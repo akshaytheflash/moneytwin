@@ -12,10 +12,8 @@ interface DemoMeta {
 
 export default function ProfileStage({
   onReady,
-  autoProfileId,
 }: {
   onReady: (twin: FinancialTwin) => void;
-  autoProfileId?: string | null;
 }) {
   const [profiles, setProfiles] = useState<DemoMeta[]>([]);
   const [loading, setLoading] = useState<string | null>(null);
@@ -39,11 +37,6 @@ export default function ProfileStage({
       cancelled = true;
     };
   }, []);
-
-  useEffect(() => {
-    if (autoProfileId) build({ source: 'demo', profileId: autoProfileId }, `demo-${autoProfileId}`);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoProfileId]);
 
   async function build(body: Record<string, unknown>, key: string) {
     setLoading(key);
@@ -117,6 +110,7 @@ export default function ProfileStage({
                   key={p.id}
                   type="button"
                   disabled={loading !== null}
+                  data-tour={p.id === 'rao' ? 'profile-card-rao' : undefined}
                   onClick={() => build({ source: 'demo', profileId: p.id }, `demo-${p.id}`)}
                   className="panel group p-5 text-left transition-transform hover:-translate-y-1 hover:shadow-[7px_7px_0_rgba(16,27,23,0.85)] disabled:opacity-50"
                 >
