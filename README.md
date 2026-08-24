@@ -40,12 +40,18 @@ npm run build      # production build
    path, and hazard-hatched failure zone.
 4. **Why this number** — quantitative risk decomposition, including per-shock sensitivity
    (removing each shock and re-simulating).
-5. **Intervention optimizer** — greedy cost-effectiveness search over catalog moves
+5. **What-if dials** — drag income/spending/EMI sliders and every chart re-simulates live.
+6. **Can I afford it?** — type an amount; get a yes / tight / no verdict with the risk delta.
+7. **How bad can it get?** — reverse stress testing: binary search finds the largest version of any
+   shock you could absorb before 50% odds of running out.
+8. **Intervention optimizer** — greedy cost-effectiveness search over catalog moves
    (cut discretionary %, cancel subscriptions, build reserve, refinance EMIs) that reaches your
-   target failure probability for minimum lifestyle cost.
-6. **Evaluation page** (`/evaluation`) — the engine is scored against a synthetic population:
-   Brier score, MAE vs high-precision reference, IQR coverage of the median, intervention
-   effectiveness, monotonicity checks, and throughput.
+   target failure probability for minimum lifestyle cost — including combined plans when no single
+   move is enough.
+9. **Scenario comparison** — save up to three runs side by side with mini runway charts.
+10. **Evaluation page** (`/evaluation`) — the engine is scored against a synthetic population:
+    agreement between fast and deep estimates, reliability of the shaded range, intervention
+    effectiveness, monotonicity checks, and throughput. All metrics are annotated in plain language.
 
 ## Architecture
 
@@ -57,6 +63,7 @@ src/
 │   ├── api/twin/route.ts         POST build twin (demo | csv | manual)
 │   ├── api/simulate/route.ts     POST Monte Carlo baseline + stressed runs
 │   ├── api/optimize/route.ts     POST intervention optimizer
+│   ├── api/reverse-stress/route.ts POST reverse stress test (breaking point)
 │   ├── api/evaluate/route.ts     GET  evaluation suite on synthetic population
 │   ├── evaluation/page.tsx       evaluation dashboard
 │   └── page.tsx                  single-page product flow
@@ -71,6 +78,8 @@ src/
         ├── recurring.ts          recurring-payment detection (CV + calendar regularity)
         ├── twin.ts               twin construction from transactions or manual input
         ├── forecast.ts           Monte Carlo engine + explainability (shock ablation)
+        ├── reverse.ts            reverse stress testing (breaking-point search)
+        ├── score.ts              resilience score (runway / commitments / stability / reserve)
         ├── interventions.ts      intervention catalog + greedy optimizer
         ├── evaluate.ts           synthetic population evaluation
         ├── parse.ts              flexible CSV statement parser

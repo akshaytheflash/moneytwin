@@ -1,8 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import RunwayChart from './RunwayChart';
 import RiskDial from './RiskDial';
+import AffordCheck from './AffordCheck';
+import BreakingPointBox from './BreakingPointBox';
 import { describeShock } from '@/lib/engine/forecast';
 import { inr } from '@/lib/engine/format';
 import type {
@@ -14,6 +16,14 @@ import type { OptimizeResult } from '@/lib/engine/interventions';
 import { parseScenarioText } from '@/lib/scenarioText';
 
 type SimPair = { baseline: SimulationResult; stressed: SimulationResult };
+
+interface SavedScenario {
+  key: string;
+  label: string;
+  points: SimulationResult['points'];
+  probabilityOfFailure: number;
+  medianMinBalance: number;
+}
 
 const PRESETS: { label: string; shocks: Shock[] }[] = [
   { label: 'Medical emergency ₹80k', shocks: [{ id: 'one_time_expense', amount: 80000, startMonth: 1 }] },
@@ -31,7 +41,7 @@ const PRESETS: { label: string; shocks: Shock[] }[] = [
   },
 ];
 
-export default function LabStage({ twin }: { twin: FinancialTwin }) {
+export default function LabStage({ twin: baseTwin }: { twin: FinancialTwin }) {
   const [horizon, setHorizon] = useState(6);
   const [shocks, setShocks] = useState<Shock[]>([]);
   const [sim, setSim] = useState<SimPair | null>(null);
@@ -42,45 +52,70 @@ export default function LabStage({ twin }: { twin: FinancialTwin }) {
   const [targetPct, setTargetPct] = useState(10);
   const [opt, setOpt] = useState<OptimizeResult | null>(null);
   const [optBusy, setOptBusy] = useState(false);
+  const [saved, setSaved] = useState<SavedScenario[]>([]);
+  const [whatIf, setWhatIf] = useState({ incomeDelta: 0, cutPct: 0, emiDelta: 0 });
   const ranOnce = useRef(false);
 
+  const whatIfActive =
+    whatIf.incomeDelta !== 0 || whatIf.cutPct !== 0 || whatIf.emiDelta !== 0;
+
+  const twin = useMemo(() => {
+    if (!whatIfActive) return baseTwin;
+    const incomeFactor = 1 + whatIf.incomeDelta / 100;
+    const cutAmt = baseTwin.variableExpenses * (whatIf.cutPct / 100);
+    return {
+      ...baseTwin,
+      monthlyIncome: Math.max(0, Math.round(baseTwin.monthlyIncome * incomeFactor)),
+      incomeVolatility: Math.max(0, Math.round(baseTwin.incomeVolatility * incomeFactor)),
+      variableExpenses: Math.max(0, Math.round(baseTwin.variableExpenses - cutAmt)),
+      discretionaryMonthly: Math.max(
+        0,
+        Math.round(baseTwin.discretionaryMonthly - cutAmt),
+      ),
+      emiMonthly: Math.max(0, Math.round(baseTwin.emiMonthly * (1 + whatIf.emiDelta / 100))),
+    };
+  }, [baseTwin, whatIf, whatIfActive]);
+
   const runSimulation = useCallback(
-    async (shockList: Shock[], h: number) => {
+    async (shockList: Shock[], h: number, forTwin: FinancialTwin) => {
       setBusy(true);
       setError(null);
       try {
         const res = await fetch('/api/simulate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ twin, scenario: { shocks: shockList, horizonMonths: h } }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          setError(data.error ?? 'Simulation failed.');
-          return;
-        }
-        setSim(data as SimPair);
-        setOpt(null);
-      } catch {
-        setError('Network error during simulation.');
-      } finally {
-        setBusy(false);
+        body: JSON.stringify({ twin: forTwin, scenario: { shocks: shockList, horizonMonths: h } }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? 'Simulation failed.');
+        return;
       }
+      setSim(data as SimPair);
+      setOpt(null);
+    } catch {
+      setError('Network error during simulation.');
+    } finally {
+      setBusy(false);
+    }
     },
-    [twin],
+    [],
   );
 
   useEffect(() => {
     if (!ranOnce.current) {
       ranOnce.current = true;
-      runSimulation([], horizon);
+      runSimulation([], horizon, twin);
+      return;
     }
-  }, [runSimulation, horizon]);
+    const t = setTimeout(() => runSimulation(shocks, horizon, twin), 500);
+    return () => clearTimeout(t);
+  }, [runSimulation, horizon, twin, shocks]);
 
   function applyShocks(list: Shock[], presetLabel: string | null = null) {
     setShocks(list);
     setActivePreset(presetLabel);
-    runSimulation(list, horizon);
+    runSimulation(list, horizon, twin);
   }
 
   function togglePreset(label: string, preset: Shock[]) {
@@ -90,7 +125,7 @@ export default function LabStage({ twin }: { twin: FinancialTwin }) {
 
   function handleHorizon(h: number) {
     setHorizon(h);
-    runSimulation(shocks, h);
+    runSimulation(shocks, h, twin);
   }
 
   function submitNaturalLanguage() {
@@ -124,6 +159,24 @@ export default function LabStage({ twin }: { twin: FinancialTwin }) {
     } finally {
       setOptBusy(false);
     }
+  }
+
+  function saveForComparison() {
+    if (!sim) return;
+    const label =
+      shocks.length > 0 ? shocks.map((s) => describeShock(s)).join(' + ') : 'Baseline (no shocks)';
+    const key = `${label}|${horizon}`;
+    setSaved((prev) => {
+      if (prev.some((s) => s.key === key)) return prev;
+      const entry: SavedScenario = {
+        key,
+        label: `${label} · ${horizon} mo`,
+        points: (shocks.length ? sim.stressed.points : sim.baseline.points).map((p) => ({ ...p })),
+        probabilityOfFailure: shocks.length ? sim.stressed.probabilityOfFailure : sim.baseline.probabilityOfFailure,
+        medianMinBalance: shocks.length ? sim.stressed.medianMinBalance : sim.baseline.medianMinBalance,
+      };
+      return [...prev, entry].slice(-3);
+    });
   }
 
   function downloadReport() {
@@ -243,6 +296,84 @@ export default function LabStage({ twin }: { twin: FinancialTwin }) {
         )}
       </div>
 
+      <div className="panel mt-4 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="eyebrow">What-if dials</h3>
+          {whatIfActive ? (
+            <span className="num rounded-full border-2 border-amber px-2.5 py-0.5 text-xs font-bold uppercase text-amber">
+              what-if active
+            </span>
+          ) : (
+            <span className="num text-xs text-inksoft">all at zero — showing your real finances</span>
+          )}
+          <button
+            type="button"
+            className="chip"
+            onClick={() => setWhatIf({ incomeDelta: 0, cutPct: 0, emiDelta: 0 })}
+          >
+            reset
+          </button>
+        </div>
+        <div className="mt-3 grid gap-x-8 gap-y-3 sm:grid-cols-3">
+          <label className="block">
+            <span className="num flex justify-between text-xs">
+              <span className="text-inksoft">Income</span>
+              <span className={whatIf.incomeDelta < 0 ? 'font-bold text-signal' : 'font-semibold'}>
+                {whatIf.incomeDelta > 0 ? '+' : ''}
+                {whatIf.incomeDelta}%
+              </span>
+            </span>
+            <input
+              type="range"
+              min={-30}
+              max={30}
+              step={5}
+              value={whatIf.incomeDelta}
+              onChange={(e) => setWhatIf((w) => ({ ...w, incomeDelta: Number(e.target.value) }))}
+              className="mt-1 w-full accent-[#0f5852]"
+              aria-label="Change monthly income percent"
+            />
+          </label>
+          <label className="block">
+            <span className="num flex justify-between text-xs">
+              <span className="text-inksoft">Trim spending</span>
+              <span className={whatIf.cutPct > 0 ? 'font-bold text-petrol' : 'font-semibold'}>
+                −{whatIf.cutPct}%
+              </span>
+            </span>
+            <input
+              type="range"
+              min={0}
+              max={60}
+              step={5}
+              value={whatIf.cutPct}
+              onChange={(e) => setWhatIf((w) => ({ ...w, cutPct: Number(e.target.value) }))}
+              className="mt-1 w-full accent-[#0f5852]"
+              aria-label="Trim spending percent"
+            />
+          </label>
+          <label className="block">
+            <span className="num flex justify-between text-xs">
+              <span className="text-inksoft">EMI burden</span>
+              <span className={whatIf.emiDelta > 0 ? 'font-bold text-signal' : 'font-semibold'}>
+                {whatIf.emiDelta > 0 ? '+' : ''}
+                {whatIf.emiDelta}%
+              </span>
+            </span>
+            <input
+              type="range"
+              min={-30}
+              max={30}
+              step={5}
+              value={whatIf.emiDelta}
+              onChange={(e) => setWhatIf((w) => ({ ...w, emiDelta: Number(e.target.value) }))}
+              className="mt-1 w-full accent-[#0f5852]"
+              aria-label="Change EMI burden percent"
+            />
+          </label>
+        </div>
+      </div>
+
       {error && (
         <p className="panel mt-4 border-signal bg-[#fdf1ec] p-4 text-sm font-semibold text-signal" role="alert">
           {error}
@@ -286,7 +417,10 @@ export default function LabStage({ twin }: { twin: FinancialTwin }) {
                 points={shocks.length ? sim.stressed.points : sim.baseline.points}
                 compareMedian={shocks.length ? sim.baseline.points.map((p) => p.p50) : undefined}
               />
-              <div className="flex justify-end px-2">
+              <div className="flex justify-end gap-2 px-2">
+                <button type="button" className="btn" onClick={saveForComparison}>
+                  ＋ Save to compare
+                </button>
                 <button type="button" className="btn" onClick={downloadReport}>
                   Download report ↓
                 </button>
@@ -305,6 +439,42 @@ export default function LabStage({ twin }: { twin: FinancialTwin }) {
               ))}
             </ul>
           </div>
+
+          <div className="mt-6 grid gap-6 lg:grid-cols-2">
+            <AffordCheck twin={twin} horizon={horizon} currentShocks={shocks} currentStressed={shocks.length ? sim.stressed : sim.baseline} />
+            <BreakingPointBox twin={twin} horizon={horizon} />
+          </div>
+
+          {saved.length > 0 && (
+            <div className="panel mt-6 p-6">
+              <div className="flex items-baseline justify-between gap-3">
+                <h3 className="eyebrow">Saved scenarios · side by side</h3>
+                <button type="button" className="chip" onClick={() => setSaved([])}>
+                  ✕ clear
+                </button>
+              </div>
+              <div className="mt-4 grid gap-4 lg:grid-cols-3">
+                {saved.map((s) => (
+                  <div key={s.key} className="rounded-lg border-2 border-ink bg-white p-4">
+                    <p className="num text-xs font-semibold leading-snug">{s.label}</p>
+                    <RunwayChart points={s.points} height={190} label={`Projected balance for ${s.label}`} />
+                    <dl className="num mt-1 space-y-1 text-xs">
+                      <div className="flex justify-between">
+                        <dt className="text-inksoft">Odds of running out</dt>
+                        <dd className={`font-bold ${s.probabilityOfFailure >= 0.5 ? 'text-signal' : 'text-petrol'}`}>
+                          {(s.probabilityOfFailure * 100).toFixed(0)}%
+                        </dd>
+                      </div>
+                      <div className="flex justify-between">
+                        <dt className="text-inksoft">Typical lowest balance</dt>
+                        <dd>{inr(s.medianMinBalance)}</dd>
+                      </div>
+                    </dl>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {shocks.length > 0 && (
             <div className="panel mt-6 p-6">
@@ -356,7 +526,7 @@ export default function LabStage({ twin }: { twin: FinancialTwin }) {
                                 {' → '}
                                 <span className="font-bold text-petrol">{(step.riskAfter * 100).toFixed(0)}%</span>
                                 <span className="ml-2 text-xs text-inksoft">
-                                  ({(step.marginalGain * 100).toFixed(0)} pp)
+                                  ({(step.marginalGain * 100).toFixed(0)} percentage points)
                                 </span>
                               </p>
                             </div>

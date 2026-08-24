@@ -2,12 +2,14 @@
 
 import { CATEGORY_LABELS } from '@/lib/engine/categories';
 import { inr } from '@/lib/engine/format';
+import { resilienceScore, bandColor } from '@/lib/engine/score';
 import type { FinancialTwin } from '@/lib/engine/types';
 
 const FLAG_COLOR: Record<FinancialTwin['flags'][number]['kind'], string> = {
   thin_buffer: '#d94c25',
   volatile_income: '#b57a06',
   dangerous_commitment: '#d94c25',
+  unusual_spending: '#b57a06',
 };
 
 export default function TwinStage({
@@ -19,6 +21,7 @@ export default function TwinStage({
 }) {
   const burn = twin.fixedExpenses + twin.variableExpenses + twin.emiMonthly;
   const runway = burn > 0 ? twin.cashBalance / burn : 0;
+  const resilience = resilienceScore(twin);
 
   const stats: [string, string, string][] = [
     ['Liquid buffer', inr(twin.cashBalance), 'cash + savings today'],
@@ -58,6 +61,36 @@ export default function TwinStage({
       )}
 
       <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="panel p-5" style={{ borderTop: `6px solid ${bandColor(resilience.band)}` }}>
+          <p className="eyebrow">Resilience score</p>
+          <div className="mt-1 flex items-baseline gap-3">
+            <p className="num text-4xl font-bold" style={{ color: bandColor(resilience.band) }}>
+              {resilience.score}
+            </p>
+            <p className="num text-sm font-semibold uppercase tracking-wide" style={{ color: bandColor(resilience.band) }}>
+              {resilience.band}
+            </p>
+          </div>
+          <p className="mt-1 text-sm leading-relaxed text-inksoft">{resilience.headline}</p>
+          <ul className="mt-3 space-y-2">
+            {resilience.parts.map((p) => (
+              <li key={p.label}>
+                <div className="num flex justify-between text-xs">
+                  <span>{p.label}</span>
+                  <span className="text-inksoft">
+                    {p.earned}/{p.max}
+                  </span>
+                </div>
+                <div className="mt-1 h-2 bg-white border border-line">
+                  <div
+                    className="h-full"
+                    style={{ width: `${(p.earned / p.max) * 100}%`, background: bandColor(resilience.band) }}
+                  />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
         {stats.map(([labelText, value, sub]) => (
           <div key={labelText} className="panel p-5">
             <p className="eyebrow">{labelText}</p>
@@ -109,13 +142,27 @@ export default function TwinStage({
                 </tr>
               </thead>
               <tbody>
-                {twin.recurring.map((r) => (
-                  <tr key={r.id} className="border-b border-line">
-                    <td className="max-w-[220px] truncate py-2 pr-2">{r.name}</td>
-                    <td className="py-2 text-right font-semibold">{inr(r.monthlyAmount)}</td>
-                    <td className="py-2 text-right text-inksoft">{(r.confidence * 100).toFixed(0)}%</td>
-                  </tr>
-                ))}
+                {twin.recurring.map((r) => {
+                  const heavy = r.kind === 'debt' && twin.monthlyIncome > 0 && r.monthlyAmount / twin.monthlyIncome > 0.15;
+                  return (
+                    <tr key={r.id} className="border-b border-line">
+                      <td className="max-w-[220px] truncate py-2 pr-2">
+                        {r.name}
+                        {heavy && (
+                          <span
+                            className="num ml-2 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold uppercase"
+                            style={{ borderColor: '#d94c25', color: '#d94c25' }}
+                            title="This EMI alone takes more than 15% of your income"
+                          >
+                            heavy
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2 text-right font-semibold">{inr(r.monthlyAmount)}</td>
+                      <td className="py-2 text-right text-inksoft">{(r.confidence * 100).toFixed(0)}%</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           ) : (

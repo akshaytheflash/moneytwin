@@ -58,7 +58,13 @@ export function buildInterventionCatalog(
     });
   }
 
-  for (const reserve of [15000, 30000]) {
+  const reserveBig = Math.min(
+    100000,
+    Math.max(25000, Math.round(twin.emergencyBufferTarget * 0.3 / 5000) * 5000),
+  );
+  const reserveTiers = [...new Set([15000, 30000, reserveBig])];
+  for (const reserve of reserveTiers) {
+    if (reserve >= twin.cashBalance * 8) continue;
     catalog.push({
       id: `build_reserve_${reserve}`,
       name: `Build ₹${reserve.toLocaleString('en-IN')} emergency reserve`,
@@ -69,7 +75,7 @@ export function buildInterventionCatalog(
   }
 
   if (twin.emiMonthly >= 3000) {
-    const relief = Math.round(twin.emiMonthly * 0.18);
+    const relief = Math.round(twin.emiMonthly * 0.22);
     catalog.push({
       id: 'refinance_emi',
       name: 'Refinance / extend loan tenure',
@@ -174,6 +180,35 @@ export function optimizeInterventions(
       marginalGain: before - curRisk,
       cumulativeRisk: curRisk,
     });
+  }
+
+  if (curRisk > targetProbability) {
+    const used = new Set(steps.map((st) => st.interventionId));
+    for (const s of scored) {
+      if (steps.length >= 4 || curRisk <= targetProbability) break;
+      if (used.has(s.iv.id)) continue;
+      used.add(s.iv.id);
+      const applied = s.iv.apply(curTwin, curScenario);
+      const r = runSimulation(applied.twin, applied.scenario, {
+        paths: evalPaths,
+        seed: seedBase,
+      });
+      if (r.probabilityOfFailure >= curRisk - 0.0005) continue;
+      curTwin = applied.twin;
+      curScenario = applied.scenario;
+      const before = curRisk;
+      curRisk = r.probabilityOfFailure;
+      sacrifice += s.iv.monthlySacrifice;
+      steps.push({
+        interventionId: s.iv.id,
+        name: s.iv.name,
+        description: s.iv.description,
+        riskBefore: before,
+        riskAfter: curRisk,
+        marginalGain: before - curRisk,
+        cumulativeRisk: curRisk,
+      });
+    }
   }
 
   return {

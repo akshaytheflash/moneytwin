@@ -70,7 +70,7 @@ export default function RiskDial({
         {severity.toUpperCase()}
       </text>
       <text x={size - 8} y={cy + 14} textAnchor="end" fontSize="10" fontFamily="var(--font-mono)" fill="#4b5a53">
-        FAIL IN HORIZON
+        ODDS OF RUNNING OUT
       </text>
     </svg>
   );

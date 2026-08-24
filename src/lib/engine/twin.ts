@@ -1,4 +1,4 @@
-import { DISCRETIONARY_CATEGORIES, STRUCTURAL_CATEGORIES } from './categories';
+import { CATEGORY_LABELS, DISCRETIONARY_CATEGORIES, STRUCTURAL_CATEGORIES } from './categories';
 import type { CategorySummary, FinancialTwin, Transaction, TwinFlag } from './types';
 import { categorizeTransactions } from './categorize';
 import { detectRecurring } from './recurring';
@@ -19,6 +19,7 @@ export function buildTwinFromTransactions(
   const monthlyCredits = new Map<string, number>();
   const monthlyOutflow = new Map<string, number>();
   const catTotals = new Map<string, number>();
+  const catMonthly = new Map<string, Map<string, number>>();
 
   for (const t of txns) {
     if (t.category === 'transfers') continue;
@@ -30,6 +31,9 @@ export function buildTwinFromTransactions(
     } else {
       monthlyOutflow.set(mk, (monthlyOutflow.get(mk) ?? 0) - t.amount);
       catTotals.set(t.category!, (catTotals.get(t.category!) ?? 0) - t.amount);
+      if (!catMonthly.has(t.category!)) catMonthly.set(t.category!, new Map());
+      const cm = catMonthly.get(t.category!)!;
+      cm.set(mk, (cm.get(mk) ?? 0) - t.amount);
     }
   }
 
@@ -99,6 +103,23 @@ export function buildTwinFromTransactions(
       kind: 'dangerous_commitment',
       message: `Rent, bills and EMIs consume ${Math.round(commitmentLoad * 100)}% of income.`,
     });
+
+  const sortedMonths = [...new Set(txns.map((t) => monthKey(t.date)))].sort();
+  const lastMonth = sortedMonths[sortedMonths.length - 1];
+  for (const [cat, cm] of catMonthly) {
+    const months = [...cm.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+    if (months.length < 4 || months[months.length - 1][0] !== lastMonth) continue;
+    const history = months.slice(0, -1).map(([, v]) => v);
+    const avg = mean(history);
+    const sd = stdev(history);
+    const latest = months[months.length - 1][1];
+    if (sd > 0 && latest > avg + 2 * sd && latest > avg * 1.5) {
+      flags.push({
+        kind: 'unusual_spending',
+        message: `${CATEGORY_LABELS[cat as keyof typeof CATEGORY_LABELS]} spiked to ${Math.round(latest).toLocaleString('en-IN')} this month — typical is around ${Math.round(avg).toLocaleString('en-IN')}.`,
+      });
+    }
+  }
 
   return {
     label: opts.label,

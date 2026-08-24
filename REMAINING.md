@@ -4,38 +4,35 @@ Prioritized by demo impact.
 
 ## High impact
 
-1. **"Can I afford this?" simulator** — a dedicated input (amount + optional timing) that answers
-   yes/no with the risk delta. The engine supports it today (one-time-expense scenario); only UI is
-   missing. ~half a day.
-2. **Scenario comparison view** — side-by-side runway charts for 2–3 saved scenarios. State model
-   already keeps baseline vs one stressed run; needs a small scenario store.
-3. **Reverse stress test** — "how large a shock can I survive?" Binary-search shock magnitude until
-   p(failure) = 50%. Cheap to add on top of `runSimulation`; high wow factor for judges.
-4. **Rao-profile optimizer dead-end** — for near-certain failure (income loss on the leveraged
-   household) no single intervention clears the 0.002-gain bar, so the ladder returns empty. A
-   "combined-only fallback" evaluation pass would show partial improvements honestly instead of an
-   empty plan.
+1. **Scenario comparison upgrades** — comparison exists (save up to 3 runs); next step is letting
+   users name saved scenarios and overlaying multiple medians on one chart instead of separate cards.
+2. **AR(1) income autocorrelation** — real gig income is serially correlated; adding an AR(1) term
+   would widen realistic tails for the freelancer profile and is easy to justify statistically.
+3. **Calibration against an independent reality model** — current eval scores estimator convergence
+   (same model, different seeds); scoring against an independently-specified generator would be
+   stronger evidence.
+4. **Household modeling** — multiple income earners as first-class entities (currently aggregated).
 
 ## Medium impact
 
-5. **Household modeling** — multiple income earners as first-class entities (currently aggregated).
-6. **Smarter categorization** — replace pure keyword rules with embeddings/LLM fallback for unknown
+5. **Smarter categorization** — replace pure keyword rules with embeddings/LLM fallback for unknown
    merchants; keep rules as the explainable first pass.
-7. **Anomaly detection** — flag unusual transactions (z-score per category) in the twin view.
-8. **Calibration against a different generative model** — current eval scores estimator convergence
-   (same model, different seeds); scoring against an independently-specified reality model would be
-   stronger evidence.
-9. **PDF report** — markdown download exists; styled PDF would land better in judging.
-10. **CSV column-mapping UX** — auto-detection covers common shapes; a manual mapping fallback UI
-    would make uploads bulletproof.
+6. **LLM fallback for NL scenario input** — regex parser handles common phrasings; an LLM layer
+   could catch fuzzier sentences. The typed-Shock API boundary already supports it.
+7. **PDF report** — markdown download works; styled PDF would land better in judging.
+8. **CSV column-mapping UX** — auto-detection covers common shapes; a manual mapping fallback UI
+   would make uploads bulletproof.
+9. **Anomaly detection depth** — current spike detection is per-category z-score on monthly totals;
+   transaction-level outliers and subscription price-creep detection are natural extensions.
 
 ## Technical debt / polish
 
-- ProfileStage skeleton cards use `animate-pulse` placeholder; could show shimmering real metadata.
+- What-if dials re-run simulations 500 ms after a slider stops — could stream cheaper low-path
+  previews while dragging, then a high-path run on release.
 - `evaluate.ts` runs synchronously in the request (~1–2 s at population 20); move to a background
   job if the population grows.
 - No e2e browser tests (Playwright) — engine and API are covered, UI flows are not automated.
 - Docker image not yet pushed/built on CI; verified locally via production build only.
 - Mobile layout tested via responsive classes but not device-verified.
-- Income noise ignores autocorrelation (real gig income is serially correlated); adding an AR(1)
-  term would widen realistic tails for freelancers.
+- Optimizer stacks "trim 20%" then "trim 40%" as two steps (60% total cut); collapsing into a
+  single best-cut step would read cleaner.

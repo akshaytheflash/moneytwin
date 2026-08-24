@@ -43,7 +43,11 @@ export interface CategorySummary {
 }
 
 export interface TwinFlag {
-  kind: 'thin_buffer' | 'volatile_income' | 'dangerous_commitment';
+  kind:
+    | 'thin_buffer'
+    | 'volatile_income'
+    | 'dangerous_commitment'
+    | 'unusual_spending';
   message: string;
 }
 

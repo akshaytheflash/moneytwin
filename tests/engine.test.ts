@@ -5,6 +5,7 @@ import { detectRecurring } from '@/lib/engine/recurring';
 import { buildTwinFromTransactions } from '@/lib/engine/twin';
 import { runSimulation, severityOf } from '@/lib/engine/forecast';
 import { optimizeInterventions } from '@/lib/engine/interventions';
+import { findBreakingPoint } from '@/lib/engine/reverse';
 import { parseBankCsv } from '@/lib/engine/parse';
 import { generateDemoTransactions } from '@/lib/engine/demo';
 import type { FinancialTwin, Transaction } from '@/lib/engine/types';
@@ -163,6 +164,55 @@ describe('intervention optimizer', () => {
       ],
     };
     const opt = optimizeInterventions(tight, scenario, 0.15);
+    expect(opt.alreadyMet).toBe(false);
+    expect(opt.steps.length).toBeGreaterThan(0);
+    expect(opt.finalRisk).toBeLessThan(opt.baselineRisk);
+  });
+});
+
+describe('reverse stress test', () => {
+  it('finds a breaking expense for a comfortable twin', () => {
+    const rich = makeTwin({ cashBalance: 400000 });
+    const bp = findBreakingPoint(rich, { id: 'one_time_expense' }, 6);
+    expect(bp).not.toBeNull();
+    expect(bp!.largestSurvivable).not.toBeNull();
+    const amt = bp!.largestSurvivable!.amount as number;
+    expect(amt).toBeGreaterThanOrEqual(1000);
+    expect((bp!.breakingShock.amount as number)).toBeGreaterThanOrEqual(amt);
+  });
+
+  it('flags fragility when even one month without income breaks the household', () => {
+    const fragile = makeTwin({
+      cashBalance: 5000,
+      fixedExpenses: 38000,
+      variableExpenses: 30000,
+      emiMonthly: 14000,
+    });
+    const bp = findBreakingPoint(fragile, { id: 'income_loss' }, 6);
+    expect(bp).not.toBeNull();
+    expect(bp!.largestSurvivable).toBeNull();
+    expect(bp!.message).toMatch(/buffer needs attention/i);
+  });
+});
+
+describe('intervention optimizer fallback', () => {
+  it('proposes a plan even when baseline failure is near-certain (leveraged household)', () => {
+    const raoLike = makeTwin({
+      label: 'rao-like',
+      cashBalance: 120000,
+      monthlyIncome: 144762,
+      incomeVolatility: 3000,
+      fixedExpenses: 10167,
+      variableExpenses: 31348,
+      discretionaryMonthly: 15000,
+      emiMonthly: 66000,
+      emergencyBufferTarget: 326000,
+    });
+    const scenario = {
+      horizonMonths: 12 as const,
+      shocks: [{ id: 'income_loss' as const, months: 2 }],
+    };
+    const opt = optimizeInterventions(raoLike, scenario, 0.15);
     expect(opt.alreadyMet).toBe(false);
     expect(opt.steps.length).toBeGreaterThan(0);
     expect(opt.finalRisk).toBeLessThan(opt.baselineRisk);
